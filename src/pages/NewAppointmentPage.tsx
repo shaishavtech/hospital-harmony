@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { patients, doctorsWithDepartments, doctorSlots, languages } from '@/lib/mock-data';
-import { Patient, Gender } from '@/types/database';
+import { Patient, Gender, AppointmentSource } from '@/types/database';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -39,6 +39,7 @@ export default function NewAppointmentPage() {
   const [appointmentTime, setAppointmentTime] = useState('');
   const [notes, setNotes] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [source, setSource] = useState<AppointmentSource>('FRONTDESK');
 
   // Available time slots based on doctor and weekday
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -337,20 +338,36 @@ export default function NewAppointmentPage() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Preferred Language</Label>
-            <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {languages.filter(l => l.is_active).map(lang => (
-                  <SelectItem key={lang.language_code} value={lang.language_code}>
-                    {lang.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Source *</Label>
+              <Select value={source} onValueChange={(v) => setSource(v as AppointmentSource)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FRONTDESK">Front Desk</SelectItem>
+                  <SelectItem value="PHONE_CALL">Phone Call</SelectItem>
+                  <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                  <SelectItem value="OTHER">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Preferred Language</Label>
+              <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {languages.filter(l => l.is_active).map(lang => (
+                    <SelectItem key={lang.language_code} value={lang.language_code}>
+                      {lang.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">

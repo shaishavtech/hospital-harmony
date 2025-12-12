@@ -44,6 +44,7 @@ export default function AppointmentDetailPage() {
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
   const [isFollowupDialogOpen, setIsFollowupDialogOpen] = useState(false);
+  const [isEditSourceDialogOpen, setIsEditSourceDialogOpen] = useState(false);
   
   const [newStatus, setNewStatus] = useState<AppointmentStatus>('COMPLETED');
   const [cancellationReason, setCancellationReason] = useState('');
@@ -53,6 +54,7 @@ export default function AppointmentDetailPage() {
   const [followupDate, setFollowupDate] = useState('');
   const [followupTime, setFollowupTime] = useState('');
   const [followupDoctor, setFollowupDoctor] = useState('');
+  const [editedSource, setEditedSource] = useState(appointment?.source || 'FRONTDESK');
 
   if (!appointment) {
     return (
@@ -87,6 +89,11 @@ export default function AppointmentDetailPage() {
     }
     toast.success('Follow-up appointment scheduled');
     setIsFollowupDialogOpen(false);
+  };
+
+  const handleEditSource = () => {
+    toast.success('Source updated successfully');
+    setIsEditSourceDialogOpen(false);
   };
 
   const canModify = ['BOOKED'].includes(appointment.status);
@@ -397,6 +404,123 @@ export default function AppointmentDetailPage() {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              {canModify && (
+                <>
+                  <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start gap-2">
+                        <Edit className="w-4 h-4" />
+                        Update Status
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Update Appointment Status</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-4">
+                        <div className="space-y-2">
+                          <Label>New Status</Label>
+                          <Select value={newStatus} onValueChange={(v) => setNewStatus(v as AppointmentStatus)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="COMPLETED">
+                                <span className="flex items-center gap-2">
+                                  <CheckCircle className="w-4 h-4 text-green-600" />
+                                  Completed
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="NO_SHOW">
+                                <span className="flex items-center gap-2">
+                                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                                  No Show
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="CANCELLED">
+                                <span className="flex items-center gap-2">
+                                  <XCircle className="w-4 h-4 text-red-600" />
+                                  Cancelled
+                                </span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {newStatus === 'CANCELLED' && (
+                          <div className="space-y-2">
+                            <Label>Cancellation Reason</Label>
+                            <Textarea
+                              placeholder="Enter reason for cancellation..."
+                              value={cancellationReason}
+                              onChange={(e) => setCancellationReason(e.target.value)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsStatusDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleUpdateStatus}>
+                          Update Status
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={isRescheduleDialogOpen} onOpenChange={setIsRescheduleDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start gap-2">
+                        <RefreshCw className="w-4 h-4" />
+                        Reschedule
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Reschedule Appointment</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>New Date</Label>
+                            <Input
+                              type="date"
+                              value={rescheduleDate}
+                              onChange={(e) => setRescheduleDate(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>New Time</Label>
+                            <Input
+                              type="time"
+                              value={rescheduleTime}
+                              onChange={(e) => setRescheduleTime(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Reason for Rescheduling</Label>
+                          <Textarea
+                            placeholder="Enter reason..."
+                            value={rescheduleReason}
+                            onChange={(e) => setRescheduleReason(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsRescheduleDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleReschedule}>
+                          Reschedule
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </>
+              )}
+
               <Dialog open={isFollowupDialogOpen} onOpenChange={setIsFollowupDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="w-full justify-start gap-2">
@@ -456,6 +580,44 @@ export default function AppointmentDetailPage() {
                     </Button>
                     <Button onClick={handleFollowup}>
                       Schedule Follow-up
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={isEditSourceDialogOpen} onOpenChange={setIsEditSourceDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start gap-2">
+                    <Edit className="w-4 h-4" />
+                    Edit Source
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Appointment Source</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label>Source</Label>
+                      <Select value={editedSource} onValueChange={(v) => setEditedSource(v as any)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="FRONTDESK">Front Desk</SelectItem>
+                          <SelectItem value="PHONE_CALL">Phone Call</SelectItem>
+                          <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                          <SelectItem value="OTHER">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsEditSourceDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleEditSource}>
+                      Update Source
                     </Button>
                   </DialogFooter>
                 </DialogContent>
