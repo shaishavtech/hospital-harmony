@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { format, subDays, startOfDay, endOfDay, parseISO, isWithinInterval } from 'date-fns';
-import { Calendar, Download, TrendingUp, Users, XCircle, AlertTriangle, IndianRupee } from 'lucide-react';
+import { Calendar, Download, TrendingUp, Users, XCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -120,7 +120,6 @@ export default function DashboardPage() {
       ['Completed', metrics.completed.toString()],
       ['Cancelled', metrics.cancelled.toString()],
       ['No Show', metrics.noShow.toString()],
-      ['Total Revenue', `₹${metrics.revenue.toLocaleString('en-IN')}`],
     ];
 
     autoTable(doc, {
@@ -135,7 +134,7 @@ export default function DashboardPage() {
 
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 20,
-      head: [['Date', 'Doctor', 'Total', 'Completed', 'Cancelled', 'No Show', 'Revenue']],
+      head: [['Date', 'Doctor', 'Total', 'Completed', 'Cancelled', 'No Show']],
       body: dailyReport.map(row => [
         format(parseISO(row.date), 'dd MMM yyyy'),
         row.doctor_name,
@@ -143,7 +142,6 @@ export default function DashboardPage() {
         row.completed,
         row.cancelled,
         row.no_show,
-        `₹${row.revenue.toLocaleString('en-IN')}`,
       ]),
       theme: 'grid',
       headStyles: { fillColor: [31, 78, 78] },
@@ -222,7 +220,7 @@ export default function DashboardPage() {
       </Card>
 
       {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Total Appointments"
           value={metrics.total}
@@ -247,12 +245,6 @@ export default function DashboardPage() {
           icon={AlertTriangle}
           variant="warning"
         />
-        <MetricCard
-          title="Revenue"
-          value={`₹${metrics.revenue.toLocaleString('en-IN')}`}
-          icon={IndianRupee}
-          variant="primary"
-        />
       </div>
 
       {/* Daily Report Table */}
@@ -274,13 +266,12 @@ export default function DashboardPage() {
                   <TableHead className="text-center">Completed</TableHead>
                   <TableHead className="text-center">Cancelled</TableHead>
                   <TableHead className="text-center">No Show</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {dailyReport.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No data available for the selected period
                     </TableCell>
                   </TableRow>
@@ -300,9 +291,6 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell className="text-center text-amber-600 font-medium">
                         {row.no_show}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        ₹{row.revenue.toLocaleString('en-IN')}
                       </TableCell>
                     </TableRow>
                   ))
