@@ -16,14 +16,24 @@ const navItems = [
   { path: '/doctors', label: 'Doctors', icon: Stethoscope },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ onNavigate }: SidebarProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
+
+  const handleNavClick = () => {
+    if (onNavigate) {
+      onNavigate();
+    }
+  };
 
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-sidebar flex flex-col border-r border-sidebar-border">
       {/* Logo */}
-      <div className="p-6 border-b border-sidebar-border">
+      <div className="p-4 sm:p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
             <Activity className="w-6 h-6 text-sidebar-primary-foreground" />
@@ -43,6 +53,7 @@ export function Sidebar() {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={handleNavClick}
               className={cn(
                 'nav-item',
                 isActive ? 'nav-item-active' : 'nav-item-inactive'

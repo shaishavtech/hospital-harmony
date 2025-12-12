@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Users, Edit, Plus, Check, X, CalendarOff, IndianRupee } from 'lucide-react';
+import { ArrowLeft, Clock, Users, Edit, Plus, Check, X, CalendarOff, IndianRupee, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -27,6 +27,7 @@ export default function DoctorProfilePage() {
     doctorSlots.filter(s => s.doctor_id === parseInt(doctorId || '0'))
   );
   const [editingSlot, setEditingSlot] = useState<DoctorSlot | null>(null);
+  const [editHasMaxPatients, setEditHasMaxPatients] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isExceptionDialogOpen, setIsExceptionDialogOpen] = useState(false);
   const [isFeeDialogOpen, setIsFeeDialogOpen] = useState(false);
@@ -67,15 +68,30 @@ export default function DoctorProfilePage() {
     toast.success(`Slot ${isActive ? 'activated' : 'deactivated'}`);
   };
 
+  const handleOpenEditDialog = (slot: DoctorSlot) => {
+    setEditingSlot(slot);
+    setEditHasMaxPatients(slot.max_patients > 0);
+    setIsDialogOpen(true);
+  };
+
   const handleSaveSlot = () => {
     if (editingSlot) {
+      const updatedSlot = {
+        ...editingSlot,
+        max_patients: editHasMaxPatients ? editingSlot.max_patients : 0,
+      };
       setSlots(prev => prev.map(slot => 
-        slot.slot_id === editingSlot.slot_id ? editingSlot : slot
+        slot.slot_id === editingSlot.slot_id ? updatedSlot : slot
       ));
       toast.success('Slot updated successfully');
     }
     setEditingSlot(null);
     setIsDialogOpen(false);
+  };
+
+  const handleDeleteSlot = (slotId: number) => {
+    setSlots(prev => prev.filter(slot => slot.slot_id !== slotId));
+    toast.success('Slot deleted successfully');
   };
 
   const handleAddSlot = () => {
@@ -127,7 +143,6 @@ export default function DoctorProfilePage() {
   };
 
   const handleUpdateFee = () => {
-    // In production, this would be an API call
     toast.success('Consultation fee updated');
     setIsFeeDialogOpen(false);
   };
@@ -139,7 +154,7 @@ export default function DoctorProfilePage() {
   })).filter(d => d.weekday > 0);
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       {/* Back Button */}
       <Button variant="ghost" onClick={() => navigate('/doctors')} className="gap-2 -ml-2">
         <ArrowLeft className="w-4 h-4" />
@@ -148,18 +163,18 @@ export default function DoctorProfilePage() {
 
       {/* Doctor Profile Card */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-6">
-            <Avatar className="w-24 h-24 ring-4 ring-primary/10">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+            <Avatar className="w-20 h-20 sm:w-24 sm:h-24 ring-4 ring-primary/10 mx-auto sm:mx-0">
               <AvatarImage src={doctor.photo_url || undefined} alt={doctor.full_name} />
-              <AvatarFallback className="bg-primary/10 text-primary text-2xl font-semibold">
+              <AvatarFallback className="bg-primary/10 text-primary text-xl sm:text-2xl font-semibold">
                 {doctor.full_name.split(' ').map(n => n[0]).join('')}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold text-foreground">{doctor.full_name}</h1>
+            <div className="flex-1 text-center sm:text-left">
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">{doctor.full_name}</h1>
               <p className="text-muted-foreground">{doctor.specialty}</p>
-              <div className="flex flex-wrap gap-2 mt-3">
+              <div className="flex flex-wrap gap-2 mt-3 justify-center sm:justify-start">
                 <Badge variant="secondary">{doctor.department?.name}</Badge>
                 <Dialog open={isFeeDialogOpen} onOpenChange={setIsFeeDialogOpen}>
                   <DialogTrigger asChild>
@@ -202,14 +217,14 @@ export default function DoctorProfilePage() {
 
       {/* Weekly Schedule */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <CardTitle className="flex items-center gap-2">
             <Clock className="w-5 h-5" />
             Weekly Schedule
           </CardTitle>
           <Dialog open={isDialogOpen && !editingSlot} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingSlot(null); }}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-2">
+              <Button size="sm" className="gap-2 w-full sm:w-auto">
                 <Plus className="w-4 h-4" />
                 Add Slot
               </Button>
@@ -283,7 +298,7 @@ export default function DoctorProfilePage() {
           </Dialog>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border overflow-hidden">
+          <div className="rounded-lg border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
@@ -304,14 +319,18 @@ export default function DoctorProfilePage() {
                             {day}
                           </TableCell>
                         )}
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                           {slot.start_time} - {slot.end_time}
                         </TableCell>
                         <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Users className="w-4 h-4 text-muted-foreground" />
-                            {slot.max_patients}
-                          </div>
+                          {slot.max_patients > 0 ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <Users className="w-4 h-4 text-muted-foreground" />
+                              {slot.max_patients}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Unlimited</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-center">
                           <Switch
@@ -320,74 +339,23 @@ export default function DoctorProfilePage() {
                           />
                         </TableCell>
                         <TableCell className="text-right">
-                          <Dialog open={isDialogOpen && editingSlot?.slot_id === slot.slot_id} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingSlot(null); }}>
-                            <DialogTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => setEditingSlot(slot)}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Edit Slot</DialogTitle>
-                              </DialogHeader>
-                              {editingSlot && (
-                                <div className="space-y-4 pt-4">
-                                  <div className="space-y-2">
-                                    <Label>Weekday</Label>
-                                    <Select 
-                                      value={editingSlot.weekday.toString()} 
-                                      onValueChange={(v) => setEditingSlot(prev => prev ? { ...prev, weekday: parseInt(v) } : null)}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {WEEKDAYS.slice(1).map((day, idx) => (
-                                          <SelectItem key={idx + 1} value={(idx + 1).toString()}>
-                                            {day}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                      <Label>Start Time</Label>
-                                      <Input
-                                        type="time"
-                                        value={editingSlot.start_time}
-                                        onChange={(e) => setEditingSlot(prev => prev ? { ...prev, start_time: e.target.value } : null)}
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>End Time</Label>
-                                      <Input
-                                        type="time"
-                                        value={editingSlot.end_time}
-                                        onChange={(e) => setEditingSlot(prev => prev ? { ...prev, end_time: e.target.value } : null)}
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label>Max Patients</Label>
-                                    <Input
-                                      type="number"
-                                      min="1"
-                                      value={editingSlot.max_patients}
-                                      onChange={(e) => setEditingSlot(prev => prev ? { ...prev, max_patients: parseInt(e.target.value) } : null)}
-                                    />
-                                  </div>
-                                  <Button onClick={handleSaveSlot} className="w-full">
-                                    Save Changes
-                                  </Button>
-                                </div>
-                              )}
-                            </DialogContent>
-                          </Dialog>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleOpenEditDialog(slot)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDeleteSlot(slot.slot_id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -406,16 +374,88 @@ export default function DoctorProfilePage() {
         </CardContent>
       </Card>
 
+      {/* Edit Slot Dialog */}
+      <Dialog open={isDialogOpen && editingSlot !== null} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingSlot(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Slot</DialogTitle>
+          </DialogHeader>
+          {editingSlot && (
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Weekday</Label>
+                <Select 
+                  value={editingSlot.weekday.toString()} 
+                  onValueChange={(v) => setEditingSlot(prev => prev ? { ...prev, weekday: parseInt(v) } : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WEEKDAYS.slice(1).map((day, idx) => (
+                      <SelectItem key={idx + 1} value={(idx + 1).toString()}>
+                        {day}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Time</Label>
+                  <Input
+                    type="time"
+                    value={editingSlot.start_time}
+                    onChange={(e) => setEditingSlot(prev => prev ? { ...prev, start_time: e.target.value } : null)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Time</Label>
+                  <Input
+                    type="time"
+                    value={editingSlot.end_time}
+                    onChange={(e) => setEditingSlot(prev => prev ? { ...prev, end_time: e.target.value } : null)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Limit Max Patients</Label>
+                  <Switch
+                    checked={editHasMaxPatients}
+                    onCheckedChange={setEditHasMaxPatients}
+                  />
+                </div>
+                {editHasMaxPatients && (
+                  <div className="space-y-2">
+                    <Label>Max Patients</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={editingSlot.max_patients || 10}
+                      onChange={(e) => setEditingSlot(prev => prev ? { ...prev, max_patients: parseInt(e.target.value) || 10 } : null)}
+                    />
+                  </div>
+                )}
+              </div>
+              <Button onClick={handleSaveSlot} className="w-full">
+                Save Changes
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Slot Exceptions */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <CardTitle className="flex items-center gap-2">
             <CalendarOff className="w-5 h-5" />
             Schedule Exceptions
           </CardTitle>
           <Dialog open={isExceptionDialogOpen} onOpenChange={setIsExceptionDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline" className="gap-2">
+              <Button size="sm" variant="outline" className="gap-2 w-full sm:w-auto">
                 <Plus className="w-4 h-4" />
                 Add Exception
               </Button>
@@ -462,7 +502,7 @@ export default function DoctorProfilePage() {
           </Dialog>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border overflow-hidden">
+          <div className="rounded-lg border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
@@ -484,12 +524,12 @@ export default function DoctorProfilePage() {
                       <TableCell className="font-medium">{exception.date_ist}</TableCell>
                       <TableCell>
                         {exception.is_available ? (
-                          <Badge variant="outline" className="gap-1 text-green-600 border-green-200 bg-green-50">
+                          <Badge variant="outline" className="gap-1 text-green-600 border-green-200 bg-green-50 dark:bg-green-950/30">
                             <Check className="w-3 h-3" />
                             Available
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="gap-1 text-red-600 border-red-200 bg-red-50">
+                          <Badge variant="outline" className="gap-1 text-red-600 border-red-200 bg-red-50 dark:bg-red-950/30">
                             <X className="w-3 h-3" />
                             Unavailable
                           </Badge>
