@@ -5,50 +5,34 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { format, parseISO } from 'date-fns';
-import { Patient, Appointment } from '@/types/database';
-import { appointments as allAppointments, payments } from '@/lib/mock-data';
+import { DbPatient, usePatientAppointments } from '@/hooks/useDatabase';
 
 interface PatientProfileDialogProps {
-  patient: Patient | null;
+  patient: DbPatient | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export function PatientProfileDialog({ patient, open, onOpenChange }: PatientProfileDialogProps) {
-  const patientAppointments = useMemo(() => {
-    if (!patient) return [];
-    return allAppointments.filter(apt => apt.patient_id === patient.patient_id);
-  }, [patient]);
+  const { data: patientAppointments = [], isLoading } = usePatientAppointments(patient?.patient_id);
 
   const stats = useMemo(() => {
     const today = new Date();
     const completed = patientAppointments.filter(apt => apt.status === 'COMPLETED').length;
     const cancelled = patientAppointments.filter(apt => apt.status === 'CANCELLED').length;
     const upcoming = patientAppointments.filter(apt => {
-      const aptDate = parseISO(apt.appointment_datetime_ist.replace(' ', 'T'));
+      const aptDate = parseISO(apt.appointment_datetime_ist);
       return aptDate > today && apt.status === 'BOOKED';
     }).length;
-
-    // Calculate pending payments (booked/completed without successful payment)
-    const completedAppointmentIds = patientAppointments
-      .filter(apt => apt.status === 'COMPLETED')
-      .map(apt => apt.appointment_id);
-    
-    const paidAppointmentIds = payments
-      .filter(p => ['SUCCESS', 'PARTIAL_REFUND'].includes(p.payment_status))
-      .map(p => p.appointment_id);
-
-    const pendingPayments = completedAppointmentIds.filter(
-      id => !paidAppointmentIds.includes(id)
-    ).length;
 
     return {
       totalVisits: patientAppointments.length,
       completed,
       cancelled,
       upcoming,
-      pendingPayments,
+      pendingPayments: 0, // Would need to fetch payments separately
     };
   }, [patientAppointments]);
 
@@ -106,7 +90,7 @@ export function PatientProfileDialog({ patient, open, onOpenChange }: PatientPro
           {patient.date_of_birth && (
             <Badge variant="outline">DOB: {format(parseISO(patient.date_of_birth), 'dd MMM yyyy')}</Badge>
           )}
-          {patient.whatsapp_opt_in && (
+          {patient.whatsapp_opt_in === 1 && (
             <Badge variant="secondary" className="bg-green-100 text-green-800">WhatsApp Opted In</Badge>
           )}
         </div>
@@ -125,7 +109,15 @@ export function PatientProfileDialog({ patient, open, onOpenChange }: PatientPro
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {patientAppointments.length === 0 ? (
+                {isLoading ? (
+                  [...Array(3)].map((_, i) => (
+                    <TableRow key={i}>
+                      {[...Array(4)].map((_, j) => (
+                        <TableCell key={j}><Skeleton className="h-4 w-16" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : patientAppointments.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                       No appointment history
@@ -137,14 +129,14 @@ export function PatientProfileDialog({ patient, open, onOpenChange }: PatientPro
                       <TableCell>
                         <div>
                           <p className="font-medium">
-                            {format(parseISO(apt.appointment_datetime_ist.replace(' ', 'T')), 'dd MMM yyyy')}
+                            {format(parseISO(apt.appointment_datetime_ist), 'dd MMM yyyy')}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {format(parseISO(apt.appointment_datetime_ist.replace(' ', 'T')), 'hh:mm a')}
+                            {format(parseISO(apt.appointment_datetime_ist), 'hh:mm a')}
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell>{apt.doctor?.full_name || 'Unknown'}</TableCell>
+                      <TableCell>{(apt.doctors as any)?.full_name || 'Unknown'}</TableCell>
                       <TableCell>
                         <StatusBadge status={apt.status} />
                       </TableCell>

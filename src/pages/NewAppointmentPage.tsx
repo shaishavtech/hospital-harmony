@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, UserPlus, Calendar, Clock } from 'lucide-react';
+import { ArrowLeft, Search, UserPlus, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { patients, doctorsWithDepartments, doctorSlots, languages } from '@/lib/mock-data';
-import { Patient, Gender, AppointmentSource } from '@/types/database';
+import { 
+  useDoctors, 
+  useDoctorSlots, 
+  useLanguages, 
+  useSearchPatients, 
+  useCreatePatient,
+  useCreateAppointment,
+  DbPatient,
+  GenderType,
+  AppointmentSource 
+} from '@/hooks/useDatabase';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -20,7 +29,7 @@ export default function NewAppointmentPage() {
   
   // Patient Selection
   const [patientSearch, setPatientSearch] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<DbPatient | null>(null);
   const [showPatientResults, setShowPatientResults] = useState(false);
   
   // New Patient Form
@@ -28,9 +37,9 @@ export default function NewAppointmentPage() {
   const [newPatient, setNewPatient] = useState({
     full_name: '',
     mobile_number: '',
-    gender: 'UNKNOWN' as Gender,
+    gender: 'UNKNOWN' as GenderType,
     date_of_birth: '',
-    whatsapp_opt_in: true,
+    whatsapp_opt_in: 1,
   });
   
   // Appointment Details
@@ -44,28 +53,28 @@ export default function NewAppointmentPage() {
   // Available time slots based on doctor and weekday
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
-  const filteredPatients = patientSearch.length >= 3
-    ? patients.filter(p => 
-        p.mobile_number.includes(patientSearch) ||
-        p.full_name.toLowerCase().includes(patientSearch.toLowerCase())
-      )
-    : [];
+  // Data hooks
+  const { data: doctors = [] } = useDoctors();
+  const { data: languages = [] } = useLanguages();
+  const { data: searchedPatients = [] } = useSearchPatients(patientSearch);
+  const { data: doctorSlots = [] } = useDoctorSlots(selectedDoctor ? parseInt(selectedDoctor) : undefined);
+  
+  const createPatientMutation = useCreatePatient();
+  const createAppointmentMutation = useCreateAppointment();
 
   useEffect(() => {
     if (selectedDoctor && appointmentDate) {
       const date = new Date(appointmentDate);
-      const weekday = date.getDay() === 0 ? 7 : date.getDay(); // Convert JS weekday to schema weekday
+      const weekday = date.getDay() === 0 ? 7 : date.getDay();
       
-      const doctorId = parseInt(selectedDoctor);
       const slots = doctorSlots.filter(s => 
-        s.doctor_id === doctorId && 
         s.weekday === weekday && 
-        s.is_active
+        s.is_active === 1
       );
 
       const times: string[] = [];
       slots.forEach(slot => {
-        const [startHour, startMin] = slot.start_time.split(':').map(Number);
+        const [startHour] = slot.start_time.split(':').map(Number);
         const [endHour] = slot.end_time.split(':').map(Number);
         
         for (let hour = startHour; hour < endHour; hour++) {
@@ -78,34 +87,39 @@ export default function NewAppointmentPage() {
     } else {
       setAvailableSlots([]);
     }
-  }, [selectedDoctor, appointmentDate]);
+  }, [selectedDoctor, appointmentDate, doctorSlots]);
 
-  const handleSelectPatient = (patient: Patient) => {
+  const handleSelectPatient = (patient: DbPatient) => {
     setSelectedPatient(patient);
     setPatientSearch(patient.mobile_number);
     setShowPatientResults(false);
   };
 
-  const handleCreatePatient = () => {
+  const handleCreatePatient = async () => {
     if (!newPatient.full_name || !newPatient.mobile_number) {
       toast.error('Please fill required fields');
       return;
     }
 
-    const patient: Patient = {
-      patient_id: patients.length + 1,
-      ...newPatient,
-      created_at_ist: new Date().toISOString(),
-    };
-
-    // In production, this would be an API call
-    setSelectedPatient(patient);
-    setPatientSearch(patient.mobile_number);
-    setIsNewPatientDialogOpen(false);
-    toast.success('Patient created successfully');
+    try {
+      const created = await createPatientMutation.mutateAsync({
+        full_name: newPatient.full_name,
+        mobile_number: newPatient.mobile_number,
+        gender: newPatient.gender,
+        date_of_birth: newPatient.date_of_birth || null,
+        whatsapp_opt_in: newPatient.whatsapp_opt_in,
+      });
+      
+      setSelectedPatient(created);
+      setPatientSearch(created.mobile_number);
+      setIsNewPatientDialogOpen(false);
+      toast.success('Patient created successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create patient');
+    }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedPatient) {
       toast.error('Please select a patient');
       return;
@@ -119,9 +133,22 @@ export default function NewAppointmentPage() {
       return;
     }
 
-    // In production, this would be an API call to create the appointment
-    toast.success('Appointment created successfully');
-    navigate('/appointments');
+    try {
+      await createAppointmentMutation.mutateAsync({
+        patient_id: selectedPatient.patient_id,
+        doctor_id: parseInt(selectedDoctor),
+        appointment_datetime_ist: `${appointmentDate}T${appointmentTime}:00`,
+        status: 'BOOKED',
+        source,
+        notes: notes || null,
+        created_by_user_id: user?.user_id || null,
+      });
+      
+      toast.success('Appointment created successfully');
+      navigate('/appointments');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create appointment');
+    }
   };
 
   return (
@@ -175,7 +202,7 @@ export default function NewAppointmentPage() {
                     <Label>Gender</Label>
                     <RadioGroup
                       value={newPatient.gender}
-                      onValueChange={(v) => setNewPatient(prev => ({ ...prev, gender: v as Gender }))}
+                      onValueChange={(v) => setNewPatient(prev => ({ ...prev, gender: v as GenderType }))}
                       className="flex gap-4"
                     >
                       <div className="flex items-center space-x-2">
@@ -205,8 +232,8 @@ export default function NewAppointmentPage() {
                   <Button variant="outline" onClick={() => setIsNewPatientDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleCreatePatient}>
-                    Create Patient
+                  <Button onClick={handleCreatePatient} disabled={createPatientMutation.isPending}>
+                    {createPatientMutation.isPending ? 'Creating...' : 'Create Patient'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -230,9 +257,9 @@ export default function NewAppointmentPage() {
               className="pl-10"
             />
             
-            {showPatientResults && filteredPatients.length > 0 && !selectedPatient && (
+            {showPatientResults && searchedPatients.length > 0 && !selectedPatient && (
               <div className="absolute z-10 w-full mt-1 bg-card border rounded-lg shadow-lg max-h-60 overflow-auto">
-                {filteredPatients.map(patient => (
+                {searchedPatients.map(patient => (
                   <button
                     key={patient.patient_id}
                     className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b last:border-b-0"
@@ -288,7 +315,7 @@ export default function NewAppointmentPage() {
                 <SelectValue placeholder="Select a doctor" />
               </SelectTrigger>
               <SelectContent>
-                {doctorsWithDepartments.filter(d => d.is_active).map(doctor => (
+                {doctors.filter(d => d.is_active).map(doctor => (
                   <SelectItem key={doctor.doctor_id} value={doctor.doctor_id.toString()}>
                     <div className="flex items-center gap-2">
                       <span>{doctor.full_name}</span>
@@ -360,7 +387,7 @@ export default function NewAppointmentPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {languages.filter(l => l.is_active).map(lang => (
+                  {languages.map(lang => (
                     <SelectItem key={lang.language_code} value={lang.language_code}>
                       {lang.name}
                     </SelectItem>
@@ -387,9 +414,13 @@ export default function NewAppointmentPage() {
         <Button variant="outline" onClick={() => navigate('/appointments')}>
           Cancel
         </Button>
-        <Button onClick={handleSubmit} className="gap-2">
+        <Button 
+          onClick={handleSubmit} 
+          className="gap-2"
+          disabled={createAppointmentMutation.isPending}
+        >
           <Calendar className="w-4 h-4" />
-          Create Appointment
+          {createAppointmentMutation.isPending ? 'Creating...' : 'Create Appointment'}
         </Button>
       </div>
     </div>

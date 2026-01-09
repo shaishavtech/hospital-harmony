@@ -9,9 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { PatientProfileDialog } from '@/components/PatientProfileDialog';
-import { appointments as mockAppointments, doctorsWithDepartments } from '@/lib/mock-data';
-import { Patient } from '@/types/database';
+import { useAppointments, useDoctors, DbPatient, AppointmentStatus } from '@/hooks/useDatabase';
 import { useNavigate } from 'react-router-dom';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const statusOptions: { value: string; label: string }[] = [
   { value: 'all', label: 'All Statuses' },
@@ -29,28 +29,29 @@ export default function AppointmentsPage() {
   const [toDate, setToDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [doctorFilter, setDoctorFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<DbPatient | null>(null);
   const [isPatientDialogOpen, setIsPatientDialogOpen] = useState(false);
 
+  const { data: doctors = [], isLoading: loadingDoctors } = useDoctors();
+  const { data: appointments = [], isLoading: loadingAppointments } = useAppointments({
+    fromDate,
+    toDate,
+    doctorId: doctorFilter !== 'all' ? parseInt(doctorFilter) : undefined,
+    status: statusFilter !== 'all' ? statusFilter as AppointmentStatus : undefined,
+  });
+
+  const isLoading = loadingDoctors || loadingAppointments;
+
   const filteredAppointments = useMemo(() => {
-    const from = startOfDay(parseISO(fromDate));
-    const to = endOfDay(parseISO(toDate));
-
-    return mockAppointments.filter(apt => {
-      const aptDate = parseISO(apt.appointment_datetime_ist.replace(' ', 'T'));
-      const inDateRange = isWithinInterval(aptDate, { start: from, end: to });
-
+    return appointments.filter(apt => {
       const matchesSearch = 
-        apt.patient?.full_name.toLowerCase().includes(search.toLowerCase()) ||
-        apt.patient?.mobile_number.includes(search) ||
+        apt.patients?.full_name.toLowerCase().includes(search.toLowerCase()) ||
+        apt.patients?.mobile_number.includes(search) ||
         apt.appointment_id.toString().includes(search);
 
-      const matchesDoctor = doctorFilter === 'all' || apt.doctor_id === parseInt(doctorFilter);
-      const matchesStatus = statusFilter === 'all' || apt.status === statusFilter;
-
-      return inDateRange && matchesSearch && matchesDoctor && matchesStatus;
+      return matchesSearch;
     });
-  }, [search, fromDate, toDate, doctorFilter, statusFilter]);
+  }, [search, appointments]);
 
   const getSourceBadgeColor = (source: string) => {
     switch (source) {
@@ -61,7 +62,7 @@ export default function AppointmentsPage() {
     }
   };
 
-  const handlePatientClick = (patient: Patient | undefined) => {
+  const handlePatientClick = (patient: DbPatient | null) => {
     if (patient) {
       setSelectedPatient(patient);
       setIsPatientDialogOpen(true);
@@ -119,7 +120,7 @@ export default function AppointmentsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Doctors</SelectItem>
-                  {doctorsWithDepartments.filter(d => d.is_active).map(doctor => (
+                  {doctors.filter(d => d.is_active).map(doctor => (
                     <SelectItem key={doctor.doctor_id} value={doctor.doctor_id.toString()}>
                       {doctor.full_name}
                     </SelectItem>
@@ -185,7 +186,15 @@ export default function AppointmentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAppointments.length === 0 ? (
+                {isLoading ? (
+                  [...Array(5)].map((_, i) => (
+                    <TableRow key={i}>
+                      {[...Array(8)].map((_, j) => (
+                        <TableCell key={j}><Skeleton className="h-4 w-16" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : filteredAppointments.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No appointments found for the selected criteria
@@ -200,26 +209,26 @@ export default function AppointmentsPage() {
                       <TableCell>
                         <div>
                           <p className="font-medium text-sm">
-                            {format(parseISO(apt.appointment_datetime_ist.replace(' ', 'T')), 'dd MMM yyyy')}
+                            {format(parseISO(apt.appointment_datetime_ist), 'dd MMM yyyy')}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {format(parseISO(apt.appointment_datetime_ist.replace(' ', 'T')), 'hh:mm a')}
+                            {format(parseISO(apt.appointment_datetime_ist), 'hh:mm a')}
                           </p>
                         </div>
                       </TableCell>
                       <TableCell>
                         <button
-                          onClick={() => handlePatientClick(apt.patient)}
+                          onClick={() => handlePatientClick(apt.patients)}
                           className="font-medium text-primary hover:underline text-left"
                         >
-                          {apt.patient?.full_name}
+                          {apt.patients?.full_name}
                         </button>
                       </TableCell>
                       <TableCell className="text-muted-foreground hidden md:table-cell">
-                        {apt.patient?.mobile_number}
+                        {apt.patients?.mobile_number}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
-                        {apt.doctor?.full_name}
+                        {apt.doctors?.full_name}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={apt.status} />
