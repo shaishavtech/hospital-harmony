@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '@/types/database';
+import { supabase } from '@/integrations/supabase/client';
+import { DbUser } from '@/hooks/useDatabase';
 
 interface AuthContextType {
-  user: User | null;
+  user: DbUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -11,39 +12,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user data - In production, this would be validated against the PHP backend
-const MOCK_USERS: User[] = [
-  {
-    user_id: 1,
-    username: 'admin',
-    password_hash: 'admin123', // In production, use proper hashing
-    role: 'ADMIN',
-    is_active: true,
-    created_at_ist: '2024-01-01 09:00:00',
-    last_login_at_ist: null,
-  },
-  {
-    user_id: 2,
-    username: 'receptionist',
-    password_hash: 'reception123',
-    role: 'RECEPTIONIST',
-    is_active: true,
-    created_at_ist: '2024-01-01 09:00:00',
-    last_login_at_ist: null,
-  },
-  {
-    user_id: 3,
-    username: 'doctor',
-    password_hash: 'doctor123',
-    role: 'DOCTOR',
-    is_active: true,
-    created_at_ist: '2024-01-01 09:00:00',
-    last_login_at_ist: null,
-  },
-];
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<DbUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -60,23 +30,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+      // Query the users table directly
+      const { data: foundUser, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .eq('password_hash', password)
+        .eq('is_active', 1)
+        .maybeSingle();
 
-    // In production, this would be a fetch call to your PHP backend
-    // POST /api/auth/login with username and password
-    const foundUser = MOCK_USERS.find(
-      u => u.username === username && u.password_hash === password && u.is_active
-    );
+      if (error) {
+        console.error('Login error:', error);
+        return { success: false, error: 'An error occurred during login' };
+      }
 
-    if (foundUser) {
-      const userWithoutPassword = { ...foundUser, password_hash: '' };
-      setUser(userWithoutPassword);
-      localStorage.setItem('hospital_user', JSON.stringify(userWithoutPassword));
-      return { success: true };
+      if (foundUser) {
+        // Update last login time
+        await supabase
+          .from('users')
+          .update({ last_login_at_ist: new Date().toISOString() })
+          .eq('user_id', foundUser.user_id);
+
+        // Store user without password hash
+        const userWithoutPassword = { ...foundUser, password_hash: '' };
+        setUser(userWithoutPassword);
+        localStorage.setItem('hospital_user', JSON.stringify(userWithoutPassword));
+        return { success: true };
+      }
+
+      return { success: false, error: 'Invalid username or password' };
+    } catch (err) {
+      console.error('Login error:', err);
+      return { success: false, error: 'An error occurred during login' };
     }
-
-    return { success: false, error: 'Invalid username or password' };
   };
 
   const logout = () => {
